@@ -259,7 +259,11 @@ const isEmptyPlaceholder = (card: SessionCard) => {
 const isClosedAndExpired = (card: SessionCard) => {
   const latestEvent = card.events[card.events.length - 1];
   const isClosed = ['Stop', 'SessionEnd', 'SubagentStop'].includes(latestEvent?.hook_event_type || '');
-  return isClosed && now.value - card.lastTimestamp > CLOSED_SESSION_VISIBLE_MS;
+  if (!isClosed) return false;
+  // Don't hide if session was resumed (UserPromptSubmit after Stop)
+  const lastStopIdx = card.events.map(e => e.hook_event_type).lastIndexOf('Stop');
+  if (lastStopIdx >= 0 && card.events.slice(lastStopIdx + 1).some(e => e.hook_event_type === 'UserPromptSubmit')) return false;
+  return now.value - card.lastTimestamp > CLOSED_SESSION_VISIBLE_MS;
 };
 
 const getReplyCapableEvent = (events: HookEvent[]) => {
@@ -269,7 +273,19 @@ const getReplyCapableEvent = (events: HookEvent[]) => {
 };
 
 const getSessionStatus = (events: HookEvent[], last: HookEvent): SessionStatus => {
-  const latestDecisionEvent = [...events].reverse().find(event => {
+  // Find the latest "decision" event after the last Stop/SessionEnd (if any)
+  const lastStopIdx = [...events].map(e => e.hook_event_type).lastIndexOf('Stop') !== -1
+    ? events.map(e => e.hook_event_type).lastIndexOf('Stop')
+    : events.map(e => e.hook_event_type).lastIndexOf('SessionEnd');
+  const eventsAfterStop = lastStopIdx >= 0 ? events.slice(lastStopIdx + 1) : events;
+
+  // If there's activity after the last Stop, the session was resumed — treat as active
+  const hasActivityAfterStop = eventsAfterStop.some(e =>
+    ['UserPromptSubmit', 'PermissionRequest'].includes(e.hook_event_type) || e.humanInTheLoop
+  );
+
+  const searchEvents = hasActivityAfterStop ? eventsAfterStop : events;
+  const latestDecisionEvent = [...searchEvents].reverse().find(event => {
     return event.hook_event_type === 'PermissionRequest' || event.humanInTheLoop || ['Stop', 'SessionEnd'].includes(event.hook_event_type);
   });
 
@@ -277,8 +293,9 @@ const getSessionStatus = (events: HookEvent[], last: HookEvent): SessionStatus =
   if (latestDecisionEvent?.humanInTheLoop && latestDecisionEvent.humanInTheLoopStatus?.status !== 'responded') return 'review';
   if (['Stop', 'SessionEnd', 'SubagentStop'].includes(last.hook_event_type)) return 'waiting';
 
+  // Only mark as waiting after 30 minutes of silence (user may just be thinking)
   const ageMs = now.value - (last.timestamp || 0);
-  return ageMs < 180_000 ? 'running' : 'waiting';
+  return ageMs < 30 * 60_000 ? 'running' : 'waiting';
 };
 
 const getSessionSummary = (events: HookEvent[], messages: ChatMessage[]) => {
