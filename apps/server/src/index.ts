@@ -1,4 +1,4 @@
-import { initDatabase, insertEvent, getFilterOptions, getRecentEvents, updateEventHITLResponse } from './db';
+import { initDatabase, insertEvent, getFilterOptions, getRecentEvents, updateEventHITLResponse, cleanupClosedSessions, cleanupEmptySessions } from './db';
 import type { HookEvent, HumanInTheLoopResponse } from './types';
 import { 
   createTheme, 
@@ -13,6 +13,17 @@ import {
 
 // Initialize database
 initDatabase();
+
+const CLOSED_SESSION_RETENTION_MS = parseInt(process.env.CLOSED_SESSION_RETENTION_MS || `${5 * 60 * 1000}`);
+
+setInterval(() => {
+  const deletedClosed = cleanupClosedSessions(CLOSED_SESSION_RETENTION_MS);
+  const deletedEmpty = cleanupEmptySessions(60_000);
+  const deleted = deletedClosed + deletedEmpty;
+  if (deleted > 0) {
+    console.log(`[cleanup] removed ${deleted} stale events`);
+  }
+}, 60_000);
 
 // Store WebSocket clients
 const wsClients = new Set<any>();

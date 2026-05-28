@@ -128,154 +128,51 @@
     <!-- Original Event Row Content (skip if HITL with humanInTheLoop) -->
     <div
       v-if="!event.humanInTheLoop"
-      class="group relative p-4 mobile:p-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-[var(--theme-border-primary)] hover:border-[var(--theme-primary)] bg-gradient-to-r from-[var(--theme-bg-primary)] to-[var(--theme-bg-secondary)]"
-      :class="{ 'ring-2 ring-[var(--theme-primary)] border-[var(--theme-primary)] shadow-2xl': isExpanded }"
+      class="event-row group relative cursor-pointer"
+      :class="{ 'is-expanded': isExpanded }"
       @click="toggleExpanded"
     >
-    <!-- App color indicator -->
-    <div 
-      class="absolute left-0 top-0 bottom-0 w-3 rounded-l-lg"
-      :style="{ backgroundColor: appHexColor }"
-    ></div>
-    
-    <!-- Session color indicator -->
-    <div 
-      class="absolute left-3 top-0 bottom-0 w-1.5"
-      :class="gradientClass"
-    ></div>
-    
-    <div class="ml-4">
-      <!-- Desktop Layout: Original horizontal layout -->
-      <div class="hidden mobile:block mb-2">
-        <!-- Mobile: App + Time on first row -->
-        <div class="flex items-center justify-between mb-1">
-          <span 
-            class="text-xs font-semibold text-[var(--theme-text-primary)] px-1.5 py-0.5 rounded-full border-2 bg-[var(--theme-bg-tertiary)] shadow-md"
-            :style="{ ...appBgStyle, ...appBorderStyle }"
-          >
-            {{ event.source_app }}
-          </span>
-          <span class="text-xs text-[var(--theme-text-tertiary)] font-medium">
-            {{ formatTime(event.timestamp) }}
-          </span>
-        </div>
-        
-        <!-- Mobile: Session + Event Type on second row -->
-        <div class="flex items-center space-x-2">
-          <span class="text-xs text-[var(--theme-text-secondary)] px-1.5 py-0.5 rounded-full border bg-[var(--theme-bg-tertiary)]/50" :class="borderColorClass">
-            {{ sessionIdShort }}
-          </span>
-          <span v-if="event.model_name" class="text-xs text-[var(--theme-text-secondary)] px-1.5 py-0.5 rounded-full border bg-[var(--theme-bg-tertiary)]/50 shadow-sm" :title="`Model: ${event.model_name}`">
-            <span class="mr-0.5">🧠</span>{{ formatModelName(event.model_name) }}
-          </span>
-          <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-[var(--theme-primary)] text-white shadow-md">
-            <span class="mr-1 text-sm">{{ hookEmoji }}</span>
-            {{ event.hook_event_type }}
-          </span>
-          <span v-if="toolName" class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold border-2 border-[var(--theme-primary)] text-[var(--theme-primary)] bg-[var(--theme-primary-light)] shadow-sm">
-            <span class="mr-0.5">{{ toolEmoji }}</span>{{ toolName }}
-          </span>
-        </div>
-      </div>
+      <!-- accent bar -->
+      <div class="accent-bar" :style="{ backgroundColor: appHexColor }"></div>
 
-      <!-- Desktop Layout: Original single row layout -->
-      <div class="flex items-center justify-between mb-2 mobile:hidden">
-        <div class="flex items-center space-x-4">
-          <span
-            class="text-base font-bold text-[var(--theme-text-primary)] px-2 py-0.5 rounded-full border-2 bg-[var(--theme-bg-tertiary)] shadow-lg"
-            :style="{ ...appBgStyle, ...appBorderStyle }"
-          >
-            {{ event.source_app }}
-          </span>
-          <span class="text-sm text-[var(--theme-text-secondary)] px-2 py-0.5 rounded-full border bg-[var(--theme-bg-tertiary)]/50 shadow-md" :class="borderColorClass">
-            {{ sessionIdShort }}
-          </span>
-          <span v-if="event.model_name" class="text-sm text-[var(--theme-text-secondary)] px-2 py-0.5 rounded-full border bg-[var(--theme-bg-tertiary)]/50 shadow-md" :title="`Model: ${event.model_name}`">
-            <span class="mr-1">🧠</span>{{ formatModelName(event.model_name) }}
-          </span>
-          <span class="inline-flex items-center px-3 py-0.5 rounded-full text-sm font-bold bg-[var(--theme-primary)] text-white shadow-lg">
-            <span class="mr-1.5 text-base">{{ hookEmoji }}</span>
-            {{ event.hook_event_type }}
-          </span>
-          <span v-if="toolName" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-semibold border-2 border-[var(--theme-primary)] text-[var(--theme-primary)] bg-[var(--theme-primary-light)] shadow-sm">
-            <span class="mr-1">{{ toolEmoji }}</span>{{ toolName }}
-          </span>
-        </div>
-        <span class="text-sm text-[var(--theme-text-tertiary)] font-semibold">
-          {{ formatTime(event.timestamp) }}
+      <!-- main log line -->
+      <div class="log-line">
+        <!-- timestamp -->
+        <span class="col-time">{{ formatTime(event.timestamp) }}</span>
+
+        <!-- machine -->
+        <span class="col-machine" :style="{ color: appHexColor }">{{ event.source_app }}</span>
+
+        <!-- event type badge -->
+        <span class="col-event" :class="eventTypeClass">{{ hookEmoji }} {{ event.hook_event_type }}</span>
+
+        <!-- tool + detail -->
+        <span class="col-detail">
+          <span v-if="toolName" class="tool-name">{{ toolName }}</span>
+          <span v-if="toolInfo?.detail" class="tool-detail">{{ toolInfo.detail }}</span>
+          <span v-else-if="event.summary" class="tool-detail summary">{{ event.summary }}</span>
         </span>
-      </div>
-      
-      <!-- Tool info and Summary - Desktop Layout -->
-      <div class="flex items-center justify-between mb-2 mobile:hidden">
-        <div v-if="toolInfo" class="text-base text-[var(--theme-text-secondary)] font-semibold">
-          <span class="font-medium italic px-2 py-0.5 rounded border-2 border-[var(--theme-primary)] bg-[var(--theme-primary-light)] shadow-sm">{{ toolInfo.tool }}</span>
-          <span v-if="toolInfo.detail" class="ml-2 text-[var(--theme-text-tertiary)]" :class="{ 'italic': event.hook_event_type === 'UserPromptSubmit' }">{{ toolInfo.detail }}</span>
-        </div>
-        
-        <!-- Summary aligned to the right -->
-        <div v-if="event.summary" class="max-w-[50%] px-3 py-1.5 bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/30 rounded-lg shadow-md">
-          <span class="text-sm text-[var(--theme-text-primary)] font-semibold">
-            <span class="mr-1">📝</span>
-            {{ event.summary }}
-          </span>
-        </div>
+
+        <!-- session id -->
+        <span class="col-session">{{ sessionIdShort }}</span>
+
+        <!-- expand chevron -->
+        <span class="col-chevron" :class="{ rotated: isExpanded }">›</span>
       </div>
 
-      <!-- Tool info and Summary - Mobile Layout -->
-      <div class="space-y-2 hidden mobile:block mb-2">
-        <div v-if="toolInfo" class="text-sm text-[var(--theme-text-secondary)] font-semibold w-full">
-          <span class="font-medium italic px-1.5 py-0.5 rounded border-2 border-[var(--theme-primary)] bg-[var(--theme-primary-light)] shadow-sm">{{ toolInfo.tool }}</span>
-          <span v-if="toolInfo.detail" class="ml-2 text-[var(--theme-text-tertiary)]" :class="{ 'italic': event.hook_event_type === 'UserPromptSubmit' }">{{ toolInfo.detail }}</span>
+      <!-- expanded payload -->
+      <div v-if="isExpanded" class="payload-panel" @click.stop>
+        <div class="payload-header">
+          <span class="payload-label">PAYLOAD</span>
+          <button class="copy-btn" @click.stop="copyPayload">{{ copyButtonText }}</button>
         </div>
-        
-        <div v-if="event.summary" class="w-full px-2 py-1 bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/30 rounded-lg shadow-md">
-          <span class="text-xs text-[var(--theme-text-primary)] font-semibold">
-            <span class="mr-1">📝</span>
-            {{ event.summary }}
-          </span>
-        </div>
-      </div>
-      
-      <!-- Expanded content -->
-      <div v-if="isExpanded" class="mt-2 pt-2 border-t-2 border-[var(--theme-primary)] bg-gradient-to-r from-[var(--theme-bg-primary)] to-[var(--theme-bg-secondary)] rounded-b-lg p-3 space-y-3">
-        <!-- Payload -->
-        <div>
-          <div class="flex items-center justify-between mb-2">
-            <h4 class="text-base mobile:text-sm font-bold text-[var(--theme-primary)] drop-shadow-sm flex items-center">
-              <span class="mr-1.5 text-xl mobile:text-base">📦</span>
-              Payload
-            </h4>
-            <button
-              @click.stop="copyPayload"
-              class="px-3 py-1 mobile:px-2 mobile:py-0.5 text-sm mobile:text-xs font-bold rounded-lg bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-dark)] text-white transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 flex items-center space-x-1"
-            >
-              <span>{{ copyButtonText }}</span>
-            </button>
-          </div>
-          <pre class="text-sm mobile:text-xs text-[var(--theme-text-primary)] bg-[var(--theme-bg-tertiary)] p-3 mobile:p-2 rounded-lg overflow-x-auto max-h-64 overflow-y-auto font-mono border border-[var(--theme-primary)]/30 shadow-md hover:shadow-lg transition-shadow duration-200">{{ formattedPayload }}</pre>
-        </div>
-        
-        <!-- Chat transcript button -->
-        <div v-if="event.chat && event.chat.length > 0" class="flex justify-end">
-          <button
-            @click.stop="!isMobile && (showChatModal = true)"
-            :class="[
-              'px-4 py-2 mobile:px-3 mobile:py-1.5 font-bold rounded-lg transition-all duration-200 flex items-center space-x-1.5 shadow-md hover:shadow-lg',
-              isMobile 
-                ? 'bg-[var(--theme-bg-quaternary)] cursor-not-allowed opacity-50 text-[var(--theme-text-quaternary)] border border-[var(--theme-border-tertiary)]' 
-                : 'bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-primary-light)] hover:from-[var(--theme-primary-dark)] hover:to-[var(--theme-primary)] text-white border border-[var(--theme-primary-dark)] transform hover:scale-105'
-            ]"
-            :disabled="isMobile"
-          >
-            <span class="text-base mobile:text-sm">💬</span>
-            <span class="text-sm mobile:text-xs font-bold drop-shadow-sm">
-              {{ isMobile ? 'Not available in mobile' : `View Chat Transcript (${event.chat.length} messages)` }}
-            </span>
+        <pre class="payload-pre">{{ formattedPayload }}</pre>
+        <div v-if="event.chat && event.chat.length > 0" class="chat-btn-row">
+          <button class="chat-btn" @click.stop="showChatModal = true">
+            💬 Chat transcript ({{ event.chat.length }})
           </button>
         </div>
       </div>
-    </div>
     </div>
     <!-- Chat Modal -->
     <ChatTranscriptModal
@@ -290,7 +187,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import type { HookEvent, HumanInTheLoopResponse } from '../types';
-import { useMediaQuery } from '../composables/useMediaQuery';
 import { useEventEmojis } from '../composables/useEventEmojis';
 import ChatTranscriptModal from './ChatTranscriptModal.vue';
 import { API_BASE_URL } from '../config';
@@ -320,9 +216,6 @@ const responseText = ref('');
 const isSubmitting = ref(false);
 const hasSubmittedResponse = ref(false);
 const localResponse = ref<HumanInTheLoopResponse | null>(null); // Optimistic UI
-
-// Media query for responsive design
-const { isMobile } = useMediaQuery();
 
 const toggleExpanded = () => {
   isExpanded.value = !isExpanded.value;
@@ -359,8 +252,18 @@ const hookEmoji = computed(() => {
 });
 
 const borderColorClass = computed(() => {
-  // Convert bg-color-500 to border-color-500
   return props.colorClass.replace('bg-', 'border-');
+});
+
+const eventTypeClass = computed(() => {
+  const t = props.event.hook_event_type;
+  if (t === 'PreToolUse') return 'ev-pre';
+  if (t === 'PostToolUse') return 'ev-post';
+  if (t === 'PostToolUseFailure') return 'ev-fail';
+  if (t === 'Stop' || t === 'SubagentStop') return 'ev-stop';
+  if (t === 'SessionStart' || t === 'SessionEnd' || t === 'SubagentStart') return 'ev-session';
+  if (t === 'UserPromptSubmit') return 'ev-prompt';
+  return 'ev-other';
 });
 
 
@@ -388,11 +291,6 @@ const toolName = computed(() => {
     return props.event.payload.tool_name;
   }
   return null;
-});
-
-const toolEmoji = computed(() => {
-  if (!toolName.value) return '';
-  return getEmojiForToolName(toolName.value);
 });
 
 const toolInfo = computed(() => {
@@ -484,20 +382,6 @@ const formatTime = (timestamp?: number) => {
   if (!timestamp) return '';
   const date = new Date(timestamp);
   return date.toLocaleTimeString();
-};
-
-// Format model name for display (e.g., "claude-haiku-4-5-20251001" -> "haiku-4-5")
-const formatModelName = (name: string | null | undefined): string => {
-  if (!name) return '';
-
-  // Extract model family and version
-  // "claude-haiku-4-5-20251001" -> "haiku-4-5"
-  // "claude-sonnet-4-5-20250929" -> "sonnet-4-5"
-  const parts = name.split('-');
-  if (parts.length >= 4) {
-    return `${parts[1]}-${parts[2]}-${parts[3]}`;
-  }
-  return name;
 };
 
 const copyPayload = async () => {
@@ -653,15 +537,162 @@ const submitChoice = async (choice: string) => {
 
 <style scoped>
 @keyframes pulse-slow {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.95;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.95; }
+}
+.animate-pulse-slow { animation: pulse-slow 2s ease-in-out infinite; }
+
+/* ── Terminal log row ── */
+.event-row {
+  position: relative;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.1s;
+}
+.event-row:hover { background: rgba(255,255,255,0.03); }
+.event-row.is-expanded { background: rgba(255,255,255,0.05); }
+
+.accent-bar {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
 }
 
-.animate-pulse-slow {
-  animation: pulse-slow 2s ease-in-out infinite;
+.log-line {
+  display: grid;
+  grid-template-columns: 80px 110px 180px 1fr 70px 18px;
+  align-items: center;
+  gap: 0 12px;
+  padding: 7px 12px 7px 16px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
 }
+
+.col-time {
+  color: #4a5568;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.col-machine {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.col-event {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.col-event.ev-pre    { color: #63b3ed; }
+.col-event.ev-post   { color: #68d391; }
+.col-event.ev-fail   { color: #fc8181; }
+.col-event.ev-stop   { color: #f6ad55; }
+.col-event.ev-session{ color: #b794f4; }
+.col-event.ev-prompt { color: #76e4f7; }
+.col-event.ev-other  { color: #a0aec0; }
+
+.col-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  min-width: 0;
+}
+.tool-name {
+  color: #e2e8f0;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.tool-detail {
+  color: #718096;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-detail.summary { color: #a0aec0; font-style: italic; }
+
+.col-session {
+  color: #4a5568;
+  font-size: 10px;
+  text-align: right;
+  letter-spacing: 0.05em;
+}
+
+.col-chevron {
+  color: #4a5568;
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.15s;
+  text-align: center;
+}
+.col-chevron.rotated { transform: rotate(90deg); color: #a0aec0; }
+
+/* ── Expanded payload ── */
+.payload-panel {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 10px 16px 12px 16px;
+  background: rgba(0,0,0,0.25);
+}
+.payload-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.payload-label {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #4a5568;
+}
+.copy-btn {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: #63b3ed;
+  background: none;
+  border: 1px solid #2d3748;
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.copy-btn:hover { border-color: #63b3ed; color: #90cdf4; }
+
+.payload-pre {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: #a0aec0;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 4px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  max-height: 240px;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+
+.chat-btn-row { margin-top: 8px; display: flex; justify-content: flex-end; }
+.chat-btn {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: #b794f4;
+  background: none;
+  border: 1px solid #44337a;
+  border-radius: 3px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.chat-btn:hover { border-color: #b794f4; }
 </style>

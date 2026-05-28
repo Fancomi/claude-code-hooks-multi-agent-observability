@@ -169,6 +169,53 @@ export function getFilterOptions(): FilterOptions {
   };
 }
 
+export function cleanupEmptySessions(retentionMs: number): number {
+  const cutoff = Date.now() - retentionMs;
+  const rows = db.prepare(`
+    SELECT source_app, session_id
+    FROM events
+    GROUP BY source_app, session_id
+    HAVING COUNT(*) = SUM(CASE WHEN hook_event_type = 'SessionStart' THEN 1 ELSE 0 END)
+       AND MAX(timestamp) < ?
+  `).all(cutoff) as { source_app: string; session_id: string }[];
+
+  let deleted = 0;
+  const stmt = db.prepare('DELETE FROM events WHERE source_app = ? AND session_id = ?');
+  for (const row of rows) {
+    const result = stmt.run(row.source_app, row.session_id);
+    deleted += result.changes;
+  }
+
+  return deleted;
+}
+
+export function cleanupClosedSessions(retentionMs: number): number {
+  const cutoff = Date.now() - retentionMs;
+  const rows = db.prepare(`
+    SELECT e.source_app, e.session_id, e.hook_event_type, e.timestamp
+    FROM events e
+    JOIN (
+      SELECT source_app, session_id, MAX(timestamp) AS max_timestamp
+      FROM events
+      GROUP BY source_app, session_id
+    ) latest
+      ON e.source_app = latest.source_app
+     AND e.session_id = latest.session_id
+     AND e.timestamp = latest.max_timestamp
+    WHERE e.timestamp < ?
+      AND e.hook_event_type IN ('Stop', 'SessionEnd', 'SubagentStop')
+  `).all(cutoff) as { source_app: string; session_id: string }[];
+
+  let deleted = 0;
+  const stmt = db.prepare('DELETE FROM events WHERE source_app = ? AND session_id = ?');
+  for (const row of rows) {
+    const result = stmt.run(row.source_app, row.session_id);
+    deleted += result.changes;
+  }
+
+  return deleted;
+}
+
 export function getRecentEvents(limit: number = 300): HookEvent[] {
   const stmt = db.prepare(`
     SELECT id, source_app, session_id, hook_event_type, payload, chat, summary, timestamp, humanInTheLoop, humanInTheLoopStatus, model_name
