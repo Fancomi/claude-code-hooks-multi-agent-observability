@@ -14,8 +14,8 @@ import {
 // Initialize database
 initDatabase();
 
-const CLOSED_SESSION_RETENTION_MS = parseInt(process.env.CLOSED_SESSION_RETENTION_MS || `${5 * 60 * 1000}`);
-const STALE_SESSION_TIMEOUT_MS = parseInt(process.env.STALE_SESSION_TIMEOUT_MS || `${5 * 60 * 1000}`);
+const CLOSED_SESSION_RETENTION_MS = parseInt(process.env.CLOSED_SESSION_RETENTION_MS || `${12 * 60 * 60 * 1000}`);
+const STALE_SESSION_TIMEOUT_MS = parseInt(process.env.STALE_SESSION_TIMEOUT_MS || `${10 * 60 * 1000}`);
 
 setInterval(() => {
   const deletedClosed = cleanupClosedSessions(CLOSED_SESSION_RETENTION_MS);

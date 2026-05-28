@@ -7,6 +7,9 @@
         <div class="subtitle">只展示任务、状态和聊天记录；隐藏工具调用细节</div>
       </div>
       <div class="header-right">
+        <button class="filter-chip" :class="{ active: showHistory }" @click="showHistory = !showHistory">
+          {{ showHistory ? '隐藏历史' : '查看历史' }}
+        </button>
         <div class="connection-pill" :class="isConnected ? 'online' : 'offline'">
           <span class="connection-dot"></span>
           {{ isConnected ? '实时连接中' : '连接中断' }}
@@ -154,6 +157,7 @@ const emit = defineEmits<{
 const scrollContainer = ref<HTMLElement>();
 const query = ref('');
 const selectedApp = ref('');
+const showHistory = ref(false);
 const expandedSessions = ref(new Set<string>());
 const replyDrafts = ref<Record<string, string>>({});
 const now = ref(Date.now());
@@ -206,7 +210,7 @@ const baseEvents = computed(() => {
     .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 });
 
-const CLOSED_SESSION_VISIBLE_MS = 5 * 60 * 1000;
+const CLOSED_SESSION_VISIBLE_MS = 30 * 60 * 1000;
 
 const sessionCards = computed<SessionCard[]>(() => {
   // Group by session_id only (same session may report from multiple source_apps)
@@ -221,7 +225,7 @@ const sessionCards = computed<SessionCard[]>(() => {
   return Array.from(groups.entries())
     .map(([key, events]) => makeSessionCard(key, events))
     .filter(card => !isEmptyPlaceholder(card))
-    .filter(card => !isClosedAndExpired(card))
+    .filter(card => showHistory.value || !isClosedAndExpired(card))
     .filter(card => card.summary !== '还没有捕获到任务内容')
     .sort((a, b) => {
       const order: Record<SessionStatus, number> = { review: 0, running: 1, waiting: 2 };
