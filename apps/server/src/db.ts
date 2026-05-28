@@ -216,6 +216,43 @@ export function cleanupClosedSessions(retentionMs: number): number {
   return deleted;
 }
 
+/**
+ * Detect sessions that stopped sending events without a proper termination.
+ * Returns synthetic SessionEnd events to be broadcast.
+ */
+export function detectStaleSessions(timeoutMs: number): HookEvent[] {
+  const cutoff = Date.now() - timeoutMs;
+  const rows = db.prepare(`
+    SELECT e.source_app, e.session_id, e.timestamp
+    FROM events e
+    JOIN (
+      SELECT source_app, session_id, MAX(timestamp) AS max_timestamp
+      FROM events
+      GROUP BY source_app, session_id
+    ) latest
+      ON e.source_app = latest.source_app
+     AND e.session_id = latest.session_id
+     AND e.timestamp = latest.max_timestamp
+    WHERE e.timestamp < ?
+      AND e.hook_event_type NOT IN ('Stop', 'SessionEnd', 'SubagentStop')
+  `).all(cutoff) as { source_app: string; session_id: string; timestamp: number }[];
+
+  const results: HookEvent[] = [];
+  for (const row of rows) {
+    const event: HookEvent = {
+      source_app: row.source_app,
+      session_id: row.session_id,
+      hook_event_type: 'SessionEnd',
+      payload: { reason: 'stale_timeout' },
+      summary: 'Session ended (no activity detected)',
+      timestamp: Date.now()
+    };
+    const inserted = insertEvent(event);
+    results.push(inserted);
+  }
+  return results;
+}
+
 export function getRecentEvents(limit: number = 300): HookEvent[] {
   const stmt = db.prepare(`
     SELECT id, source_app, session_id, hook_event_type, payload, chat, summary, timestamp, humanInTheLoop, humanInTheLoopStatus, model_name

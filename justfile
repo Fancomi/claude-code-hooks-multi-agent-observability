@@ -107,6 +107,16 @@ hook-test name:
 hooks:
     @ls -1 {{project_root}}/.claude/hooks/*.py | xargs -I{} basename {} .py
 
+# ─── Remote ──────────────────────────────────────────────
+
+# Deploy hook script to remote dev machine (e.g. just remote-deploy 10.52.94.216 dev-01)
+remote-deploy host source_app="dev-01":
+    ./scripts/remote/deploy.sh {{host}} {{source_app}}
+
+# Start sync from remote dev machine
+remote-sync host="10.52.94.216":
+    ./scripts/remote/sync.sh --remote myuser@{{host}}::data/events/
+
 # ─── Open ────────────────────────────────────────────────
 
 # Open the client dashboard in browser

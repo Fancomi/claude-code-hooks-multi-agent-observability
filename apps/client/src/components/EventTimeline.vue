@@ -25,6 +25,23 @@
         v-model="query"
         placeholder="搜索任务、回复、会话号..."
       />
+      <div class="app-filter">
+        <button
+          class="filter-chip"
+          :class="{ active: !selectedApp }"
+          @click="selectedApp = ''"
+        >全部</button>
+        <button
+          v-for="app in uniqueApps"
+          :key="app"
+          class="filter-chip"
+          :class="{ active: selectedApp === app }"
+          @click="selectedApp = app"
+        >
+          <span class="machine-dot" :style="{ backgroundColor: getHexColorForApp(app) }"></span>
+          {{ app }}
+        </button>
+      </div>
       <div class="toolbar-meta">
         <span>事件 {{ events.length }} 条</span>
         <span v-if="lastEventAt">最近更新 {{ formatRelativeTime(lastEventAt) }}</span>
@@ -136,6 +153,7 @@ const emit = defineEmits<{
 
 const scrollContainer = ref<HTMLElement>();
 const query = ref('');
+const selectedApp = ref('');
 const expandedSessions = ref(new Set<string>());
 const replyDrafts = ref<Record<string, string>>({});
 const now = ref(Date.now());
@@ -172,6 +190,10 @@ interface SessionCard {
   replyEventId?: number;
 }
 
+const uniqueApps = computed(() => {
+  return [...new Set(props.events.map(e => e.source_app))].sort();
+});
+
 const baseEvents = computed(() => {
   return props.events
     .filter(event => {
@@ -187,10 +209,11 @@ const baseEvents = computed(() => {
 const CLOSED_SESSION_VISIBLE_MS = 5 * 60 * 1000;
 
 const sessionCards = computed<SessionCard[]>(() => {
+  // Group by session_id only (same session may report from multiple source_apps)
   const groups = new Map<string, HookEvent[]>();
 
   for (const event of baseEvents.value) {
-    const key = `${event.source_app}:${event.session_id}`;
+    const key = event.session_id;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(event);
   }
@@ -199,6 +222,7 @@ const sessionCards = computed<SessionCard[]>(() => {
     .map(([key, events]) => makeSessionCard(key, events))
     .filter(card => !isEmptyPlaceholder(card))
     .filter(card => !isClosedAndExpired(card))
+    .filter(card => card.summary !== '还没有捕获到任务内容')
     .sort((a, b) => {
       const order: Record<SessionStatus, number> = { review: 0, running: 1, waiting: 2 };
       return order[a.status] - order[b.status] || b.lastTimestamp - a.lastTimestamp;
@@ -206,10 +230,17 @@ const sessionCards = computed<SessionCard[]>(() => {
 });
 
 const visibleSessionCards = computed(() => {
-  const q = query.value.trim().toLowerCase();
-  if (!q) return sessionCards.value;
+  let cards = sessionCards.value;
 
-  return sessionCards.value.filter(card => {
+  // Filter by selected source_app
+  if (selectedApp.value) {
+    cards = cards.filter(card => card.sourceApp === selectedApp.value);
+  }
+
+  const q = query.value.trim().toLowerCase();
+  if (!q) return cards;
+
+  return cards.filter(card => {
     return [
       card.sourceApp,
       card.sessionId,
@@ -299,11 +330,19 @@ const getSessionStatus = (events: HookEvent[], last: HookEvent): SessionStatus =
 };
 
 const getSessionSummary = (events: HookEvent[], messages: ChatMessage[]) => {
+  // Find the latest UserPromptSubmit and the latest Stop with chat
+  const lastPromptEvent = [...events].reverse().find(e => e.hook_event_type === 'UserPromptSubmit' && typeof e.payload?.prompt === 'string');
+  const lastStopWithChat = [...events].reverse().find(e => Array.isArray(e.chat) && e.chat.length > 0);
+
+  // If there's a prompt AFTER the last chat snapshot, it's the current task
+  if (lastPromptEvent && (!lastStopWithChat || (lastPromptEvent.timestamp || 0) > (lastStopWithChat.timestamp || 0))) {
+    return `任务：${truncate(lastPromptEvent.payload.prompt, 92)}`;
+  }
+
   const lastUserMessage = [...messages].reverse().find(message => message.role === 'user');
   if (lastUserMessage) return `任务：${truncate(lastUserMessage.text, 92)}`;
 
-  const promptEvent = [...events].reverse().find(event => typeof event.payload?.prompt === 'string');
-  if (promptEvent?.payload?.prompt) return `任务：${truncate(promptEvent.payload.prompt, 92)}`;
+  if (lastPromptEvent?.payload?.prompt) return `任务：${truncate(lastPromptEvent.payload.prompt, 92)}`;
 
   return '还没有捕获到任务内容';
 };
@@ -583,6 +622,29 @@ h2 {
 }
 
 .cockpit-toolbar input:focus { border-color: rgba(56, 189, 248, 0.58); }
+
+.app-filter {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.6);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.filter-chip:hover { border-color: rgba(56, 189, 248, 0.4); color: #e2e8f0; }
+.filter-chip.active { border-color: rgba(56, 189, 248, 0.6); background: rgba(56, 189, 248, 0.1); color: #38bdf8; }
+.filter-chip .machine-dot { width: 7px; height: 7px; border-radius: 50%; }
+
 .toolbar-meta {
   display: flex;
   gap: 14px;
@@ -597,11 +659,9 @@ h2 {
 }
 
 .session-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
   gap: 14px;
-  max-width: 1120px;
-  margin: 0 auto;
 }
 
 .session-card {

@@ -1,4 +1,4 @@
-import { initDatabase, insertEvent, getFilterOptions, getRecentEvents, updateEventHITLResponse, cleanupClosedSessions, cleanupEmptySessions } from './db';
+import { initDatabase, insertEvent, getFilterOptions, getRecentEvents, updateEventHITLResponse, cleanupClosedSessions, cleanupEmptySessions, detectStaleSessions } from './db';
 import type { HookEvent, HumanInTheLoopResponse } from './types';
 import { 
   createTheme, 
@@ -15,6 +15,7 @@ import {
 initDatabase();
 
 const CLOSED_SESSION_RETENTION_MS = parseInt(process.env.CLOSED_SESSION_RETENTION_MS || `${5 * 60 * 1000}`);
+const STALE_SESSION_TIMEOUT_MS = parseInt(process.env.STALE_SESSION_TIMEOUT_MS || `${5 * 60 * 1000}`);
 
 setInterval(() => {
   const deletedClosed = cleanupClosedSessions(CLOSED_SESSION_RETENTION_MS);
@@ -22,6 +23,16 @@ setInterval(() => {
   const deleted = deletedClosed + deletedEmpty;
   if (deleted > 0) {
     console.log(`[cleanup] removed ${deleted} stale events`);
+  }
+
+  // Detect sessions that died without proper termination, inject synthetic SessionEnd
+  const staleEvents = detectStaleSessions(STALE_SESSION_TIMEOUT_MS);
+  for (const event of staleEvents) {
+    const msg = JSON.stringify(event);
+    for (const client of wsClients) {
+      client.send(msg);
+    }
+    console.log(`[stale] injected SessionEnd for ${event.source_app}:${event.session_id.slice(0, 8)}`);
   }
 }, 60_000);
 
